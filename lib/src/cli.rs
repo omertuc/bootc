@@ -99,6 +99,9 @@ pub(crate) struct SwitchOpts {
 
     /// Target image to use for the next boot.
     pub(crate) target: String,
+
+    #[clap(long)]
+    pub(crate) stateroot: Option<String>,
 }
 
 /// Options controlling rollback
@@ -702,7 +705,9 @@ async fn switch(opts: SwitchOpts) -> Result<()> {
         }
     }
 
-    let stateroot = booted_deployment.osname();
+    let osname = booted_deployment.osname();
+    let stateroot = opts.stateroot.as_deref().unwrap_or_else(|| osname.as_str());
+    
     crate::deploy::stage(sysroot, &stateroot, &fetched, &new_spec).await?;
 
     if opts.apply {

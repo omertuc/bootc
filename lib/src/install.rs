@@ -171,6 +171,9 @@ pub(crate) struct InstallConfigOpts {
     #[clap(long, hide = true)]
     #[serde(default)]
     pub(crate) skip_bound_images: bool,
+
+    #[clap(long)]
+    pub(crate) stateroot: Option<String>,
 }
 
 #[derive(Debug, Clone, clap::Parser, Serialize, Deserialize, PartialEq, Eq)]
@@ -567,8 +570,11 @@ async fn initialize_ostree_root(state: &State, root_setup: &RootSetup) -> Result
     // Another implementation: https://github.com/coreos/coreos-assembler/blob/3cd3307904593b3a131b81567b13a4d0b6fe7c90/src/create_disk.sh#L295
     crate::lsm::ensure_dir_labeled(rootfs_dir, "", Some("/".into()), 0o755.into(), sepolicy)?;
 
-    // TODO: make configurable?
-    let stateroot = STATEROOT_DEFAULT;
+    let stateroot = state
+        .config_opts
+        .stateroot
+        .as_deref()
+        .unwrap_or(STATEROOT_DEFAULT);
     Task::new_and_run(
         "Initializing ostree layout",
         "ostree",
