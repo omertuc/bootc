@@ -99,6 +99,9 @@ pub(crate) struct SwitchOpts {
 
     /// Target image to use for the next boot.
     pub(crate) target: String,
+
+    #[clap(long)]
+    pub(crate) stateroot: Option<String>,
 }
 
 /// Options controlling rollback
@@ -687,17 +690,42 @@ async fn switch(opts: SwitchOpts) -> Result<()> {
     let (booted_deployment, _deployments, host) =
         crate::status::get_status_require_booted(sysroot)?;
 
+    let (stateroot, is_same_stateroot) = {
+        let booted_osname = booted_deployment.osname();
+        let stateroot = opts
+            .stateroot
+            .as_deref()
+            .unwrap_or_else(|| booted_osname.as_str());
+
+        (stateroot.to_owned(), stateroot == booted_osname)
+    };
+
     let new_spec = {
         let mut new_spec = host.spec.clone();
         new_spec.image = Some(target.clone());
         new_spec
     };
 
-    if new_spec == host.spec {
-        println!("Image specification is unchanged.");
+    if new_spec == host.spec && is_same_stateroot {
+        // TODO: Should we confuse users with terms like "stateroot"?
+        println!(
+            "The currently running deployment in stateroot {stateroot} is already using this image"
+        );
         return Ok(());
     }
     let new_spec = RequiredHostSpec::from_spec(&new_spec)?;
+
+    if !is_same_stateroot {
+        let sysroot = ostree::Sysroot::new_default();
+        let init_result = sysroot.init_osname(&stateroot, cancellable);
+        match init_result {
+            Ok(_) => {}
+            Err(err) => {
+                // TODO: Only ignore non already-exists errors
+                println!("Ignoring error creating new stateroot: {err}");
+            }
+        }
+    }
 
     let fetched = crate::deploy::pull(repo, &target, None, opts.quiet).await?;
 
@@ -712,7 +740,6 @@ async fn switch(opts: SwitchOpts) -> Result<()> {
         }
     }
 
-    let stateroot = booted_deployment.osname();
     crate::deploy::stage(sysroot, &stateroot, &fetched, &new_spec).await?;
 
     if opts.apply {
