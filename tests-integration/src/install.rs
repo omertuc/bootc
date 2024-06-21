@@ -26,15 +26,23 @@ pub(crate) const BASE_ARGS: &[&str] = &[
 // Clear out and delete any ostree roots
 fn reset_root(sh: &Shell) -> Result<()> {
     // TODO fix https://github.com/containers/bootc/pull/137
-    if !Path::new("/ostree/deploy/default").exists() {
-        return Ok(());
+
+    for stateroot in ["default", "foo"] {
+        if !Path::new(&format!("/ostree/deploy/{stateroot}")).exists() {
+            continue;
+        }
+
+        if Path::new(&format!("/ostree/deploy/{stateroot}/deploy")).exists() {
+            cmd!(
+            sh,
+            // env var hack needed because cmd! doesn't interpolate inside single quotes
+            "sudo STATEROOT={stateroot} /bin/sh -c 'chattr -i /ostree/deploy/$STATEROOT/deploy/*'"
+        )
+            .run()?;
+        }
+
+        cmd!(sh, "sudo rm /ostree/deploy/{stateroot} -rf").run()?;
     }
-    cmd!(
-        sh,
-        "sudo /bin/sh -c 'chattr -i /ostree/deploy/default/deploy/*'"
-    )
-    .run()?;
-    cmd!(sh, "sudo rm /ostree/deploy/default -rf").run()?;
     Ok(())
 }
 
@@ -134,6 +142,15 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
             let root = &Dir::open_ambient_dir("/ostree", cap_std::ambient_authority()).unwrap();
             let mut path = PathBuf::from(".");
             crate::selinux::verify_selinux_recurse(root, &mut path, false)?;
+            Ok(())
+        }),
+        Trial::test("Install to non-default stateroot", move || {
+            let sh = &xshell::Shell::new()?;
+            reset_root(sh)?;
+            let non_default_stateroot = "foo";
+            cmd!(sh, "sudo {BASE_ARGS...} {target_args...} {image} bootc install to-existing-root --stateroot {non_default_stateroot} --acknowledge-destructive {generic_inst_args...}").run()?;
+            generic_post_install_verification()?;
+            assert!(Utf8Path::new("/ostree/deploy/foo").try_exists()?);
             Ok(())
         }),
         Trial::test("without an install config", move || {
