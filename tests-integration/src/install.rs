@@ -174,7 +174,7 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
             cmd!(sh, "sudo {BASE_ARGS...} {target_args...} {image} bootc install to-existing-root --replace alongside --stateroot {SOME_OTHER_STATEROOT} --acknowledge-destructive {generic_inst_args...}").run()?;
             generic_post_install_verification()?;
             assert!(
-                Utf8Path::new(&format!("/ostree/deploy/{NON_DEFAULT_STATEROOT}")).try_exists()?
+                Utf8Path::new(&format!("/ostree/deploy/{SOME_OTHER_STATEROOT}")).try_exists()?
             );
             Ok(())
         }),
