@@ -170,7 +170,6 @@ pub(crate) fn run_alongside(image: &str, mut testargs: libtest_mimic::Arguments)
 
             // Now try again to a different stateroot
             let sh = &xshell::Shell::new()?;
-            reset_root(sh, image)?;
             cmd!(sh, "sudo {BASE_ARGS...} {target_args...} {image} bootc install to-existing-root --replace alongside --stateroot {SOME_OTHER_STATEROOT} --acknowledge-destructive {generic_inst_args...}").run()?;
             generic_post_install_verification()?;
             assert!(
