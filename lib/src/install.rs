@@ -173,6 +173,10 @@ pub(crate) struct InstallConfigOpts {
     /// The stateroot name to use. Defaults to `default`.
     #[clap(long)]
     pub(crate) stateroot: Option<String>,
+
+    /// Whether to retain the existing bootloader configuration.
+    #[clap(long)]
+    pub(crate) retain: bool,
 }
 
 #[derive(Debug, Clone, clap::Parser, Serialize, Deserialize, PartialEq, Eq)]
@@ -1649,6 +1653,8 @@ pub(crate) async fn install_to_filesystem(
         fsopts
     };
 
+    let retain = opts.config_opts.retain;
+
     // Gather global state, destructuring the provided options.
     // IMPORTANT: We might re-execute the current process in this function (for SELinux among other things)
     // IMPORTANT: and hence anything that is done before MUST BE IDEMPOTENT.
@@ -1674,7 +1680,11 @@ pub(crate) async fn install_to_filesystem(
             })
             .await??;
         }
-        Some(ReplaceMode::Alongside) => clean_boot_directories(&rootfs_fd)?,
+        Some(ReplaceMode::Alongside) => {
+            if !retain {
+                clean_boot_directories(&rootfs_fd)?
+            }
+        }
         None => require_empty_rootdir(&rootfs_fd)?,
     }
 
